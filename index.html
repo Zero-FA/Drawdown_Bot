@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Sonny - Your Apex Quiz Bot</title>
+  <title>Sonny - Your Apex Chat Bot</title>
   <style>
     body {
       background-color: #0b132b;
@@ -69,7 +69,6 @@
     <button onclick="handleSend()">Send</button>
     <button onclick="startChat()">Start Chat</button>
     <button onclick="endChat()">End Chat</button>
-    <button onclick="startChat()">Try Again</button>
   </div>
   <script>
     const drawdownFAQText = `Trailing Drawdown and Rules
@@ -360,7 +359,6 @@ At the top, you’ll see a cumulative Profit and Loss (PnL) chart, which shows h
 Directly underneath, each row of the table displays key account metrics updated nightly at midnight ET. These include your most recent trade date, account type, total PnL, and the number of trading days completed. You can also see critical thresholds such as the trailing stop (maximum allowed drawdown), current account balance, target profit levels, and an easy-to-read progress bar that visually indicates how close you are to reaching the goals or potential breaches. 
 
 Finally, the status and state columns inform you if the account is active, inactive, passed, or blown, ensuring you always know exactly where you stand in your evaluation or PA journey.`;
-
     const openaiKey = "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";
 
     let currentQuestion = 0;
@@ -374,8 +372,10 @@ Finally, the status and state columns inform you if the account is active, inact
       const msg = document.createElement("div");
       msg.className = sender;
       msg.innerText = (sender === "bot" ? "Sonny: " : "You: ") + text;
-      chat.appendChild(msg);
-      chat.scrollTop = chat.scrollHeight;
+      setTimeout(() => {
+        chat.appendChild(msg);
+        chat.scrollTop = chat.scrollHeight;
+      }, sender === "bot" ? Math.random() * 800 + 300 : 0);
     }
 
     function appendFeedbackBlock(content) {
@@ -394,7 +394,47 @@ Finally, the status and state columns inform you if the account is active, inact
       currentQuestion = 0;
       userAnswers = [];
       clearChat();
-      appendMessage("Chat ended. Refresh to try again.");
+      appendMessage("chat ended. refresh or click start to try again.");
+    }
+
+    async function startChat() {
+      chatActive = true;
+      currentQuestion = 0;
+      userAnswers = [];
+      selectedQuestions = [];
+      scoreTotal = 0;
+      clearChat();
+      appendMessage("hey... it's sonny. i got a few questions 😩");
+      generateConfusedMessage();
+    }
+
+    async function generateConfusedMessage() {
+      const prompt = `You are playing the role of a confused Apex Trader Funding member. 
+Generate ONE realistic, unstructured message from a frustrated or confused user about trailing drawdown, contract limits, or differences between Rithmic and Tradovate. 
+Use slang, typos, and casual tone. Sound like someone DMing support — no grammar or polish. Do not answer anything — just act confused. Only return ONE short message.`;
+
+      try {
+        const response = await fetch("https://api.openai.com/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${openaiKey}`
+          },
+          body: JSON.stringify({
+            model: "gpt-4o",
+            messages: [{ role: "user", content: prompt }],
+            temperature: 0.7
+          })
+        });
+
+        const data = await response.json();
+        const confusedMessage = data.choices[0].message.content.trim();
+        selectedQuestions.push(confusedMessage);
+        appendMessage(confusedMessage);
+      } catch (error) {
+        appendMessage("uhh somethin broke 😕 try again later");
+        console.error(error);
+      }
     }
 
     function handleSend() {
@@ -406,58 +446,16 @@ Finally, the status and state columns inform you if the account is active, inact
       document.getElementById("userInput").value = "";
 
       currentQuestion++;
-      if (currentQuestion < selectedQuestions.length) {
-        setTimeout(() => appendMessage(selectedQuestions[currentQuestion]), 400);
+      if (currentQuestion < 5) {
+        setTimeout(() => generateConfusedMessage(), 600);
       } else {
-        appendMessage("Thanks! Grading your answers...");
+        appendMessage("aight... lemme grade this real quick 🤓");
         gradeAnswers();
       }
     }
 
-    async function startChat() {
-      chatActive = true;
-      currentQuestion = 0;
-      selectedQuestions = [];
-      userAnswers = [];
-      scoreTotal = 0;
-      clearChat();
-      appendMessage("Generating 5 random drawdown questions...");
-
-const prompt = `You are playing the role of a confused Apex Trader Funding member. 
-Generate 5 realistic, unstructured messages from frustrated or confused users about trailing drawdown, contract limits, or differences between Rithmic and Tradovate. 
-Use slang, typos, and casual tone. Make the messages sound like someone DMing support or sending a chat — don't use proper grammar or punctuation. 
-Some should be angry, some confused, some just asking. No need to be polite. Do NOT answer the questions — you're just playing a confused user. Each message should be on its own line. Only return the 5 messages.
-
-Use this FAQ as your only context:\n\n${drawdownFAQText}`;
-
-      const response = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${openaiKey}`
-        },
-        body: JSON.stringify({
-          model: "gpt-4o",
-          messages: [{ role: "user", content: prompt }],
-          temperature: 0.6
-        })
-      });
-
-      const data = await response.json();
-      const questions = data.choices[0].message.content;
-      selectedQuestions = questions.split(/\n\d+\.\s*/).filter(q => q);
-
-      if (selectedQuestions.length === 0) {
-        appendMessage("Failed to generate questions. Please try again.");
-        return;
-      }
-
-      appendMessage("Let's begin! Answer the following 5 questions.");
-      appendMessage(selectedQuestions[currentQuestion]);
-    }
-
     async function gradeAnswers() {
-const prompt = `You are a QA evaluator for a support team training program. 
+      const prompt = `You are a QA evaluator for a support team training program. 
 Grade how well the trainee explains Apex Trader Funding's drawdown rules to a confused or frustrated member. 
 Use only the FAQ as your source of truth — do not assume anything not in the FAQ.
 
